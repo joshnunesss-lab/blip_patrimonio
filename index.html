@@ -50,6 +50,11 @@ input.input-erro{border-color:#dc2626!important;background:#fef2f2}
 
 .localizacao-alerta{display:none;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;padding:10px;border-radius:8px;margin:6px 0 10px;font-size:14px}
 .localizacao-alerta button{margin-top:8px;padding:8px 12px;font-size:13px}
+.sugestoes.localizacao-ativa{
+    display:block!important;
+    position:relative;
+    z-index:1005;
+}
 </style>
 </head>
 <body>
@@ -267,10 +272,30 @@ async function carregarEquipamentosBase(){
 }
 
 
+
+function getLocalizacoesFallback(){
+  return [
+    "A_1","A_2","A_3","A_4","A_5",
+    "B_1","B_2","B_3","B_4","B_5",
+    "C_1","C_2","C_3","C_4","C_5",
+    "D_1","D_2","D_3","D_4","D_5",
+    "CASE_CAMERAS","CASE_LENTES","CASE_FX30","CASE_CAMERA_URSA",
+    "CASE_STARLINK_MINI_1","CASE_STARLINK_MINI_2",
+    "CASE_CONVERSORES_BIDI","CASE_CONVERSORES_FIBRA",
+    "CASE_KIT_AUDIO","CASE_FERRAMENTAS_WIGGO","CASE_PATCH_CORD",
+    "CASE_KIT_FERRAGENS","CASE_SDI_HDMI","CASE_DJI_RS2","CASE_DJI_RS4"
+  ];
+}
+
 async function carregarLocalizacoes(){
   try{
     const response=await fetch(API+"?action=localizacoes");
     localizacoesDetalhadas=await response.json();
+
+    if(!Array.isArray(localizacoesDetalhadas) || localizacoesDetalhadas.length===0){
+      localizacoesDetalhadas=getLocalizacoesFallback().map(codigo=>({codigo:codigo,descricao:""}));
+    }
+
     localizacoesBase=localizacoesDetalhadas.map(item=>item.codigo).filter(Boolean);
     atualizarDatalistLocalizacoes();
     atualizarFiltrosLocalizacao();
@@ -413,13 +438,46 @@ function atualizarFiltrosLocalizacao(){
   localizacoesBase.forEach(loc=>{const option=document.createElement("option");option.value=loc;option.textContent=loc;filtro.appendChild(option)});
 }
 function mostrarSugestoesLocalizacao(){
-  const input=document.getElementById("localizacao");const box=document.getElementById("sugestoesLocalizacao");const termo=normalizarBusca(input.value);
-  if(!termo||termo.length<1){box.style.display="none";box.innerHTML="";return}
-  const encontrados=localizacoesBase.filter(loc=>normalizarBusca(loc).includes(termo)).slice(0,8);
-  if(!encontrados.length){box.style.display="none";box.innerHTML="";return}
-  box.innerHTML=encontrados.map(loc=>`<div class="sugestao" onclick="selecionarLocalizacao('${String(loc).replace(/'/g,"\\'")}')"><strong>${loc}</strong></div>`).join("");
+  const input=document.getElementById("localizacao");
+  const box=document.getElementById("sugestoesLocalizacao");
+  const termo=normalizarBusca(input.value);
+
+  if(!box)return;
+
+  let encontrados=[];
+
+  if(!termo){
+    encontrados=localizacoesBase.slice(0,12);
+  }else{
+    encontrados=localizacoesBase
+      .filter(loc=>normalizarBusca(loc).includes(termo))
+      .slice(0,12);
+  }
+
+  if(!encontrados.length){
+    box.classList.remove("localizacao-ativa");
+    box.style.display="none";
+    box.innerHTML="";
+    validarLocalizacaoManual();
+    return;
+  }
+
+  box.innerHTML=encontrados.map(loc=>{
+    const detalhe=localizacoesDetalhadas.find(item=>item.codigo===loc);
+    const desc=detalhe&&detalhe.descricao ? detalhe.descricao : "";
+    const safeLoc=String(loc).replace(/'/g,"\\'");
+    return `<div class="sugestao" onclick="selecionarLocalizacao('${safeLoc}')">
+      <strong>${loc}</strong>
+      ${desc ? `<small>${desc}</small>` : ""}
+    </div>`;
+  }).join("");
+
   box.style.display="block";
+  box.classList.add("localizacao-ativa");
+
+  validarLocalizacaoManual();
 }
+
 function selecionarLocalizacao(loc){document.getElementById("localizacao").value=loc;document.getElementById("sugestoesLocalizacao").style.display="none"}
 
 function atualizarDashboard(){
